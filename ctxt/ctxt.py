@@ -1,6 +1,7 @@
 import re
 import inspect
 import traceback
+import functools
 import collections
 from contextlib import contextmanager
 
@@ -131,6 +132,7 @@ class Tracer(object):
 
         """
         def wrap(f):
+            @functools.wraps(f)
             def wrapped_f(*args, **kwargs):
 
                 def throws(exc):
@@ -152,6 +154,7 @@ class Tracer(object):
 
     def __traced_inst(self, text_spec):
         def wrap(f):
+            @functools.wraps(f)
             def wrapped_f(*args, **kwargs):
 
                 def throws(exc):

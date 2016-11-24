@@ -20,10 +20,7 @@ Example:
     exception values map
 
 """
-try:
-    from distutils.core import setup
-except ImportError:
-    from setuptools import setup
+from setuptools import setup
 
 
 setup(

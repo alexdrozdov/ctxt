@@ -3,5 +3,6 @@
 *.swo
 /dist
 /build
+/*egg-info
 *.egg
 MANIFEST

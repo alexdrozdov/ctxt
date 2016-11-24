@@ -1,3 +1,84 @@
+"""
+Ctxt - Semantic Call Stack Context Manager
+
+
+Provides unified method to keep call semantics when exception occures. It
+devotes to textual description of call stack with actual values passed throw it
+at each stack level. Contains  wrappers and context managers to trace semantic
+flow. All of them are implemented as methods of Tracer class. Both static and
+non-static methods present.
+
+Method wrappers are expected to be used as decorators. Context managers may be
+used as usually, no return value provided. All of them accept formatted string
+describing particular action and additionally dictinary of value maps for string
+formatter. When keywords from formatted string are present in dictinary theay
+are used as is. If missing values are looked up in current context and upper
+stack. Read more about resolution rules in method docs.
+
+Tracer methods may be used staticly, i.e, @Tracer.traced(...), or as object
+methods, i.e,
+tracer = Tracer(...)
+tracer.traced(...)
+
+When expected exception occures in wrapped method or context manager its handled
+with this module subroutines. It can be either wrapped with StackTracerException
+or reraised. Normally any axception types are called. Those, that should pass
+throw, should be explicitly specified.
+
+
+Three patterns to specify unhandled (passing throw) exceptions are expected. You
+can freely combine them with each other.
+
+    1. Construct Tracer object with tuple passed to `throws` argument. Use its
+    traced and scope methods to wrapp your code.
+
+    tracer = Tracer(throws=(KeyError, ))
+    @tracer.traced('I ll raise KeyError exception')
+    def somethig_wrong():
+        a = {0: 1, 2: 3}
+        return a[4]
+
+    2. Subclass Tracer, provide throws attribute to subclass. Attribute is
+    expected to be tuple of exception
+
+    class KeyErrorTracer(Tracer):
+        throws = (KeyError, )
+
+    @KeyErrorTracer.traced('I ll raise KeyError exception')
+    def somethig_wrong():
+        a = {0: 1, 2: 3}
+        return a[4]
+
+    3. Pass tuple of exception either to traced or scope call. This tuple will
+    be observed when exception occures. Tuple will be used in this particular
+    call only. Other calls wont be modified.
+
+    @Tracer.traced('I ll raise KeyError exception', (KeyError, ))
+    def somethig_wrong():
+        a = {0: 1, 2: 3}
+        return a[4]
+
+
+Example:
+    >> @Tracer.traced('Adding {param1}, {param2}')
+    >> def sum(self, v1, v2):
+    >>     with Tracer.scope({'param1': v1 + 2, 'param2': v2 + 2}
+    >>         a = {1: 2, 2: 4}
+    >>         b = a[10]       # Here is KeyError exception raised
+    >>         return v1 + v2
+    >>
+    >> sum(1, 2)
+
+    This will throw StackTracerException with message `Adding 3 and 4`.
+    Values for message format will be extracted from internal scope
+    exception values map
+
+
+Todo:
+    Support docstring parsing for traced wrapper.
+"""
+
+
 import re
 import inspect
 import traceback
@@ -16,6 +97,22 @@ except ImportError:
 
 
 class StackTracerException(Exception):
+    """ StackTracerException - class containing semantic exception context
+
+    StackTracerException is raised by Tracer method if any traced exception
+    occures in decorated method. It can contain semantic inforamtion about
+    particular stack frame, reference to lower stack frame exception or
+    reference to original exception.
+
+    Content of StackTracerException depends on circumstances it was raised on:
+        - when original exception occures in decorated method
+          StackTracerException will contain reference to it and possibly some
+          textual description if can be generated
+        - when upper stack frame catches underlying StackTracerException newly
+          generated StackTracerException will contain reference to it and
+          possibly som textual description
+    """
+
     def __init__(self, sub_exc=None, text=None, params_map=None):
         self.__sub_exc = sub_exc
         self.__text = text
@@ -25,6 +122,25 @@ class StackTracerException(Exception):
         return self.__params_map
 
     def format(self, fmt):
+        """ format exception to some human or machine readable format depending
+        on fmt option
+
+        Args:
+            fmt (str): format spec. Normally only 'dict' is accepted.
+
+        Returns:
+            When fmt is 'dict' return python dictionary describing call stack.
+            This dict looks like chain of objects corresponding to particular
+            stack frame.
+
+            Each dictinary object may contain at least one of fields:
+                - text - contains textual description for frame context. Field
+                  is optional for all frame object except the lowest one. It
+                  always has this field containing original python traceback.
+                - sub_exc - reference to lower frame object. Is present for all
+                  frames except the lowest one.
+        """
+
         assert fmt in ['dict', 'dict-short']
         s = {}
         if self.__text:
